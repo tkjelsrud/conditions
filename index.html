@@ -1,0 +1,44 @@
+<html>
+<head>
+
+<script>
+
+ds = {"nodes": [], 
+		"table": []};
+
+elem = {
+	"text": "Test description",
+	"links": [],
+	"loc": [0, 0]
+	"state": 0,
+};
+
+states = {
+	1:	{"text": "OK", "color": "green"},
+	0:	{"text": "failure", "color": "red"},
+	-1:	{"text": "unknown", "color": "grey"}
+};
+
+link = {
+	"condition": "if X > 100",
+	"eval": "//code here",
+	"outcomes": [1, 0]
+};
+
+
+
+
+</script>
+
+</head>
+
+<body>
+	<div id="result">test</div>
+	
+	<script>
+
+		document.getElementById("result").innerHTML = localStorage.lastname;
+
+	</script>
+</body>
+</html>
