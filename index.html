@@ -1,43 +1,225 @@
 <html>
 <head>
+<style>
+body {margin: 0px;}
+div {font-family: Verdana; font-size: 10px}
+#tools {float: left; width: 100%; height: 3%; background-color: #dddddd; }
+#grid { float: left; width: 100%; height: 60%; background-color: #efefef;  }
+#table { float: left; border-top: 1px solid grey; width: 100%; height: 30%; background-color: #eeeeee;  }
+#data { float: left; width: 100%; height: 100%; background-color: #efefef;  display: none;}
+.label { color: grey; text-align: center}
 
+.node {
+	position: relative;
+	background-color: #cccccc;
+	width: 80px;
+	height: 80px;
+}
+</style>
 <script>
-
-ds = {"nodes": [], 
-		"table": []};
-
-elem = {
-	"text": "Test description",
-	"links": [],
-	"loc": [0, 0]
-	"state": 0,
-};
+CSV = {'ID': 0, 'NAME': 1, 'LOC': 2};
+nodes = [];
+links = [];
 
 states = {
 	1:	{"text": "OK", "color": "green"},
 	0:	{"text": "failure", "color": "red"},
-	-1:	{"text": "unknown", "color": "grey"}
+	"-1":	{"text": "unknown", "color": "grey"}
 };
 
-link = {
-	"condition": "if X > 100",
-	"eval": "//code here",
-	"outcomes": [1, 0]
-};
+function ToggleData() {
+	$("#grid").toggle();
+	$("#table").toggle();
+	$("#data").toggle();
+}
 
+function ToggleEdit() {
+	$('.node').each(function(){
+		if($(this).attr('contenteditable') == 'false')
+			 $(this).attr('contenteditable', 'true');
+		else
+			$(this).attr('contenteditable', 'false');});
+}
 
+function SaveData() {
+	localStorage.tkcond = $("#data").html();
+	//localStorage.tkcond_real = $("#grid").html();
+}
 
+function Trim(str) {
+	if(!str)
+		return "";
+	return str.replace(/^\s\s*/, '').replace(/\s\s*$/, '');
+}
+
+function ParseData(html) {
+	html = html.replace(/<br>/gi, "\n");
+	html = html.replace(/<\/p>/gi, "\n");
+	html = html.replace(/&nbsp;/gi, " ");
+	html = html.replace(/<(?:.|\s)*?>/g, "");
+	html = html.replace(/ +; +/gi, ";");
+	html = html.replace(/ +, +/gi, ",");
+
+	return html;
+}
+
+function DataToHtml() {
+	html = "";
+	for(var i = 0; i < nodes.length; i++) {
+		html += nodes[i].join(";") + "<br/>";
+	}
+	 
+	return html;
+}
+
+function LoadData() {
+	// Data in CSV format
+	//
+	$("#data").html('<pre>' + localStorage.tkcond + '</pre>');
+	
+	lines = ParseData(localStorage.tkcond).split("\n");
+	links = [];
+	nodes = [];
+
+	// Write to arrays to keep data in semi-structured format
+
+	for(var i = 0; i < lines.length; i++) {
+		line = Trim(lines[i]);
+
+		if(line != "") {
+			elems = line.split(";");
+			if(elems.length >= 3) {
+				nodes.push(elems);
+			}
+		}
+	}
+
+	for(var i = 0; i < nodes.length; i++) {
+		node = nodes[i];
+
+		id = Trim(node[0]);
+		name = Trim(node[1]);
+		loc = Trim(node[2]).split(",");
+				
+		$("#grid").append('<div id="' + id + '" class="node drag" ' +
+		'style="position:absolute;z-index:1;left: ' + loc[0] + 'px;top: ' + loc[1] + 'px;" contentEditable="false">' + name + '</div>');
+
+		for(var j = 3; j < node.length; j++) {
+			aux = Trim(node[j]);
+			if(aux != "") {
+				if(aux.substring(0, 4) == "LINK"){
+					aux = aux.replace("LINK[", "");
+					aux = aux.replace("]", "");
+					link = aux.split(",");
+					l = {"from": id, "to": link[0]};
+					if(link.length > 2)
+						l['label'] = link[1];
+					if(link.length > 3)
+						l['logic'] = link[2];
+					links.push(l);
+				}
+			}
+		} 
+	}
+
+	for(var i = 0; i < links.length; i++) {
+		CreateOrUpdateLink(links[i]);
+	}
+
+}
+
+function RedrawGrid() {
+	// Re-draw all links
+	$(".link").remove();
+	
+	for(var i = 0; i < links.length; i++) {
+		l = links[i];
+		CreateOrUpdateLink(l);
+	}
+
+	// Update data name & positions (in case of move)
+	for(var i = 0; i < nodes.length; i++) {
+		el = $('#' + nodes[i][CSV.ID])
+		nodes[i][CSV.NAME] = el.text();
+		nodes[i][CSV.LOC] = [el.position().left, el.position().top];
+	}
+	
+	$('#data').html(DataToHtml());
+	SaveData();
+}
+
+function CreateOrUpdateLink(link) {
+	// Identify/delete existing lines
+
+	// Find horizontal and vertical distance
+	fLoc = $('#' + link.from).position();
+	tLoc = $('#' + link.to).position();
+
+	hDist = Math.abs(fLoc.left - tLoc.left);
+	vDist = Math.abs(fLoc.top - tLoc.top);
+	nOff  = $('#' + link.from).width() / 2;
+	
+	if(fLoc.left > tLoc.left) {
+		x = tLoc.left;
+		tLoc.left = fLoc.left;
+		fLoc.left = x;
+	}
+	
+	if(fLoc.top > tLoc.top) {
+		x = tLoc.top;
+		tLoc.top = fLoc.top;
+		fLoc.top = x;
+	}
+
+	$("#grid").append('<div class="link" style="position:absolute;z-index:0;overflow: hidden;left: ' + (nOff + fLoc.left) + 'px;top: ' + (nOff + fLoc.top) + 'px;width:' + hDist + 'px;height:1px;background-color:grey"></div>');
+	$("#grid").append('<div class="link" style="position:absolute;z-index:0;overflow: hidden;left: ' + (nOff + fLoc.left + hDist) + 'px;top: ' + (nOff + fLoc.top) + 'px;width:1px;height:' + (vDist) + 'px;background-color:grey"></div>');
+	
+	if(link.label && link.label != "")
+		$("#grid").append('<div class="link label" style="position:absolute;z-index:0;left: ' + (nOff + fLoc.left) + 'px;top: ' + (nOff + fLoc.top) + 'px;width: ' + hDist + 'px">' + link.label + '</div>');
+
+	// Create 5 parts, A+B+LABEL+C+D divs
+
+	// Place the label halfway
+}
+
+function RunSimulation() {
+
+}
 
 </script>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
 
 </head>
 
 <body>
-	<div id="result">test</div>
-	
-	<script>
+	<div id="tools">
+		Condition Simulator | 
+		<a href="#" onclick="RunSimulation();">Run</a> |
+		<a href="#" onclick="ToggleEdit();">Edit</a> |
+		<a href="#" onclick="ToggleData();">Show data</a> | 
+		<a href="#" onclick="SaveData();">Save</a>
+	</div>
+ 
+	<div id="grid">
+		&nbsp;
+	</div>
 
-		document.getElementById("result").innerHTML = localStorage.lastname;
+	<div id="table">&nbsp;</div>
+
+	<div id="data" contenteditable="true"><pre>Some datas heres</pre></div>
+	
+	<script>	
+		LoadData();
+
+		$( function() { 
+			$( ".drag" ).draggable({ grid: [ 20, 20 ] }); 
+			$( ".drag" ).bind('dragstop', function(){RedrawGrid();});
+
+		} );
+	
+		//$('#line1').attr('x1',100).attr('y1',100).attr('x2',200).attr('y2',200);
 
 	</script>
 </body>
